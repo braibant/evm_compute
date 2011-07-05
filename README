@@ -1,0 +1,27 @@
+An example of Coq plugin that provides a tactic that generalize the
+vm_compute tactic, such that it is possible to use it when existential
+variables appear in the goal. 
+
+It also makes it possible to recover some kind of opacity by
+abstracting over some definitions that appear in the goal (instances
+of these definitions that appear through computations are going to be
+expanded, though).
+
+For instance, 
+\[
+evm blacklist [plus] 
+\]
+
+in the goal 
+
+\[
+5 * 4 + ?3 
+\]
+
+reduces to 
+
+\[
+20 + ?3
+\]
+
+
