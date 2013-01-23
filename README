@@ -25,3 +25,17 @@ reduces to
 \]
 
 
+INSTALL
+=================
+
+make 
+make -f Makefile.coq install
+
+
+USAGE
+=================
+
+- [evm_compute] perform computation using the vm_compute strategy, even if there are evars in the goal.
+
+- [evm_compute blacklist l] performs computation without unfolding the terms in [l] that appears in the current conclusion (but those that appear through reduction are unfolded). [l] is a list in OCaml syntax (bracketed, semi-colon separated). 
+
