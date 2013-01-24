@@ -101,30 +101,55 @@ end
 let mk_vm_cast t c = Term.mkCast (c,Term.VMcast,t)
 
 let mk_let  
-    (name:string)
+    (name:Names.identifier)
     (c: constr)
     (t: constr)
     (k : Names.identifier -> constr) =
-  let name = (Names.id_of_string name) in 
   Term.mkNamedLetIn name c t (Term.subst_vars [name] (k name))
 
 let mk_fun
-    (name:string)
+    (name:Names.identifier)
     (t: constr)
     (k : Names.identifier -> constr) =
-  let name = (Names.id_of_string name) in 
   Term.mkNamedLambda name t (Term.subst_vars [name] (k name))
+
+let rec has_evar x =
+  match Term.kind_of_term x with
+    | Term.Evar _ -> true
+    | Term.Rel _ | Term.Var _ | Term.Meta _ | Term.Sort _ | Term.Const _ | Term.Ind _ | Term.Construct _ ->
+      false
+    | Term.Cast (t1, _, t2) | Term.Prod (_, t1, t2) | Term.Lambda (_, t1, t2) ->
+      has_evar t1 || has_evar t2
+    | Term.LetIn (_, t1, t2, t3) ->
+      has_evar t1 || has_evar t2 || has_evar t3
+    | Term.App (t1, ts) ->
+      has_evar t1 || has_evar_array ts
+    | Term.Case (_, t1, t2, ts) ->
+      has_evar t1 || has_evar t2 || has_evar_array ts
+    | Term.Fix ((_, tr)) | Term.CoFix ((_, tr)) ->
+      has_evar_prec tr
+and has_evar_array x =
+  Util.array_exists has_evar x
+and has_evar_prec (_, ts1, ts2) =
+  Util.array_exists has_evar ts1 || Util.array_exists has_evar ts2
 
 
 let evm_compute eq blacklist = fun gl -> 
   (* the type of the conclusion of the goal is [concl] *)
   let concl = Tacmach.pf_concl gl in 
 
+  let extra = 
+    List.fold_left (fun acc (id,body,ty) -> 
+      match body with 
+	| None -> acc
+	| Some body -> if has_evar body then (Term.mkVar id :: acc) else acc)
+      [] (Tacmach.pf_hyps gl) in 
+
   (* the set of evars that appear in the goal *)
   let evars = Evd.evar_list (Tacmach.project gl) concl in 
   
   (* the arguments of the function are: the constr that are blacklisted, then the evars  *)
-  let args = blacklist @ (List.map (fun x -> Term.mkEvar x) evars) in 
+  let args = extra @ blacklist @ (List.map (fun x -> Term.mkEvar x) evars) in 
   
   let argsv = Array.of_list args in 
 
@@ -148,13 +173,16 @@ let evm_compute eq blacklist = fun gl ->
   (* the normal form of the head function *)
   let nft = Vnorm.cbv_vm (Tacmach.pf_env gl) t typeof_t in 
   
+
+  let (!!) x = Tactics.fresh_id [] ((Names.id_of_string x)) gl in
+
   (* p = [fun x => x a_i] which corresponds to the type of the goal when applied to [t] *)
-  let p = mk_fun "x" typeof_t (fun x -> Term.mkApp (Term.mkVar x,argsv)) in 
+  let p = mk_fun (!! "x") typeof_t (fun x -> Term.mkApp (Term.mkVar x,argsv)) in 
   
   let proof_term pnft = begin  
-    mk_let "nft" nft typeof_t (fun nft -> let nft' = Term.mkVar nft in
-    mk_let "t" t typeof_t (fun t -> let t' = Term.mkVar t in 	
-    mk_let "H" (mk_vm_cast (Leibniz.eq typeof_t t' nft') (Leibniz.eq_refl typeof_t nft')) (Leibniz.eq typeof_t t' nft')
+    mk_let (!! "nft") nft typeof_t (fun nft -> let nft' = Term.mkVar nft in
+    mk_let (!! "t") t typeof_t (fun t -> let t' = Term.mkVar t in 	
+    mk_let (!! "H") (mk_vm_cast (Leibniz.eq typeof_t t' nft') (Leibniz.eq_refl typeof_t nft')) (Leibniz.eq typeof_t t' nft')
    (fun h -> 
      				(* typeof_t -> Prop *)
     let body = Leibniz.eq_ind_r typeof_t 

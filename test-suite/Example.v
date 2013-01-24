@@ -68,6 +68,22 @@ Time cbv; reflexivity.
 Time Qed. 
 
 
+(* it works even if there are lets in the hyps *)
+Goal exists e1 e2, Z.of_nat k = e1 * e2. 
+intros. eexists.   eexists.
+ match goal with |- _ = ?x * ?y => 
+                 let Hx := fresh in
+                 let Hy := fresh in 
+                 set (Hx:=x);
+                 set (Hy:=y) end.  
+(* Fail vm_compute. *)
+rewrite <- factorisable. 
+evm blacklist [Zmult]. 
+unfold H, H0. reflexivity. 
+Show Proof. Time Qed. 
+
+
+
 (* An example of a proof that blows up at Qed time, because the proof term does not provide enough information *)
 (* 
 Check ("cbv without witnesses")%string. 
@@ -78,3 +94,18 @@ set (f :=Z.mul).
 Time cbv - [f]; unfold f;  reflexivity. (* 4 s *)
 Time Qed.                               (* 154 s !! *)
 *)
+
+Fixpoint nexists n P :=
+  match n with 
+    | 0 => P 
+    | S n => exists x, nexists n (P /\ x = 1)
+  end%nat. 
+
+Check ("cbv with witnesses")%string. 
+Goal exists e1 e2, nexists 10  (Z.of_nat k = e1 * e2).
+unfold nexists; do 12 eexists.    
+rewrite <- (factorisable). 
+evm blacklist [Zmult].
+repeat split. 
+Time Qed. 
+
