@@ -1,5 +1,5 @@
 MODULES :=  src/evm_compute.ml4 src/Evm_compute.v test-suite/Example.v
-NAME := Exploit
+NAME := evm_compute
 ROOT := ./
 .PHONY: coq clean
 
