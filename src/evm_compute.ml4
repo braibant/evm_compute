@@ -184,7 +184,7 @@ let evm_compute eq blacklist = fun gl ->
     mk_let (!! "t") t typeof_t (fun t -> let t' = Term.mkVar t in 	
     mk_let (!! "H") (mk_vm_cast (Leibniz.eq typeof_t t' nft') (Leibniz.eq_refl typeof_t nft')) (Leibniz.eq typeof_t t' nft')
    (fun h -> 
-     				(* typeof_t -> Prop *)
+    (* typeof_t -> Prop *)
     let body = Leibniz.eq_ind_r typeof_t 
       nft' p pnft t' (Term.mkVar h) 
     in 
@@ -192,10 +192,14 @@ let evm_compute eq blacklist = fun gl ->
   )))
   end in 
   
-  assert_tac "subgoal" (Term.mkApp (p,[| nft |]))
-    (fun subgoal -> 
-      Tactics.exact_no_check (proof_term (Term.mkVar subgoal)) 
-    ) gl
+  try 
+    assert_tac "subgoal" (Term.mkApp (p,[| nft |]))
+      (fun subgoal -> 
+	Tactics.exact_no_check (proof_term (Term.mkVar subgoal)) 
+      ) gl
+  with 
+    | e -> Util.anomaly (Printf.sprintf "evm_compute failed with an exception %s" (Printexc.to_string e))
+      
 ;;
 
 
