@@ -13,3 +13,6 @@ Makefile.coq: Makefile $(MODULES)
 clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean
 	rm -f Makefile.coq .depend
+
+install:
+	$(MAKE) -f Makefile.coq install

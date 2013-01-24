@@ -29,7 +29,7 @@ INSTALL
 =================
 
 make 
-make -f Makefile.coq install
+make install
 
 
 USAGE
