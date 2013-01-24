@@ -195,7 +195,11 @@ let evm_compute eq blacklist = fun gl ->
   try 
     assert_tac "subgoal" (Term.mkApp (p,[| nft |]))
       (fun subgoal -> 
-	Tactics.exact_no_check (proof_term (Term.mkVar subgoal)) 
+	(* We use the tactic [exact_no_check]. It has two consequences:
+	- first, it means that in theory we could produce ill typed proof terms, that fail to type check at Qed; 
+	- second, it means that we are able to use vm_compute and vm_compute casts, that will be checkable at Qed time when all evars have been instantiated. 
+	*)
+	Tactics.exact_no_check (proof_term (Term.mkVar subgoal))  
       ) gl
   with 
     | e ->
