@@ -13,3 +13,4 @@
 *.ml.d
 *.o
 Makefile-localvars.gen
+Makefile.coq

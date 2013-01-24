@@ -198,7 +198,8 @@ let evm_compute eq blacklist = fun gl ->
 	Tactics.exact_no_check (proof_term (Term.mkVar subgoal)) 
       ) gl
   with 
-    | e -> Util.anomaly (Printf.sprintf "evm_compute failed with an exception %s" (Printexc.to_string e))
+    | e ->
+      Tacticals.tclFAIL 0 (Pp.str (Printf.sprintf "evm_compute failed with an exception %s" (Printexc.to_string e))) gl
       
 ;;
 

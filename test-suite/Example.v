@@ -80,7 +80,7 @@ intros. eexists.   eexists.
 rewrite <- factorisable. 
 evm blacklist [Zmult]. 
 unfold H, H0. reflexivity. 
-Show Proof. Time Qed. 
+Qed. 
 
 
 
