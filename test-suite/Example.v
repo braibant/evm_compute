@@ -1,4 +1,4 @@
-Add Rec LoadPath "../src/" as Exploit.  
+Add Rec LoadPath "../src/" as evm_compute.  
 Add ML Path "../src/". 
 
 Require Evm_compute. 
@@ -53,6 +53,13 @@ Goal exists e1 e2, Z.of_nat k = e1 * e2.
 intros. eexists. eexists.
 rewrite <- factorisable. 
 Time evm blacklist [Zmult;].   reflexivity.  
+Time Qed. 
+
+Check ("evm_compute in H")%string. 
+Goal exists e1 e2, (Z.of_nat k = e1 * e2 -> e1 * e2 = ka * kb). 
+intros. eexists. eexists. intros H.
+rewrite <- factorisable in H. 
+Time evm in H blacklist [Zmult;]. simpl in subgoal. apply subgoal. 
 Time Qed. 
 
 Check ("vm_compute with witnesses")%string. 

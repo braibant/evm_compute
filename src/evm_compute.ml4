@@ -1,4 +1,5 @@
 
+
 let pp_constr fmt x = Pp.pp_with fmt (Printer.pr_constr x)
 let pp_list pp fmt l = List.iter (fun x -> Format.fprintf fmt "%a; " pp x) l
 let pp_list_nl pp fmt l = List.iter (fun x -> Format.fprintf fmt "%a;\n" pp x) l
@@ -66,13 +67,14 @@ let mk_letin
 let assert_tac
     (name:string)
     (c: constr)
+    (by:Proof_type.tactic)
     (k : Names.identifier -> Proof_type.tactic)
 : Proof_type.tactic =
   fun goal ->
     let name = (Names.id_of_string name) in
     let name =  Tactics.fresh_id [] name goal in
     let t = (Tactics.assert_tac  (Names.Name name) c) in
-      Tacticals.tclTHENS t [Tacticals.tclIDTAC; (k name)] goal
+      Tacticals.tclTHENS t [by; (k name)] goal
 
 
 (* The contrib name is used to locate errors when loading constrs *)
@@ -134,6 +136,75 @@ and has_evar_prec (_, ts1, ts2) =
   Util.array_exists has_evar ts1 || Util.array_exists has_evar ts2
 
 
+let evm_compute_in eq blacklist h = fun gl -> 
+  
+  let term = Tacmach.pf_get_hyp_typ gl h in 
+  let extra = 
+    List.fold_left (fun acc (id,body,ty) -> 
+      match body with 
+	| None -> acc
+	| Some body -> if has_evar body then (Term.mkVar id :: acc) else acc)
+      [] (Tacmach.pf_hyps gl) in 
+
+  (* the set of evars that appear in the term *)
+  let evars = Evd.evar_list (Tacmach.project gl) term in 
+  
+  (* the arguments of the function are: the constr that are blacklisted, then the evars  *)
+  let args = extra @ blacklist @ (List.map (fun x -> Term.mkEvar x) evars) in 
+  
+  let argsv = Array.of_list args in 
+
+  let context = (Termops.rel_list 0 (List.length args)) in 
+
+  (* we associate to each argument the proper de bruijn index *)
+  let (subst: (Term.constr * Term.constr) list) = List.combine args context in 
+  
+  let module R = Replace(struct let eq = eq let subst = subst end) in 
+  
+  let t = R.replace_terms term in 
+  
+  (* we have to retype both the blacklist and the evars to know how to build the final product *)
+  let rel_context = List.map (fun x -> Names.Anonymous, None, Tacmach.pf_type_of gl x) args in 
+  
+  (* the abstraction *)
+  let t = Term.it_mkLambda_or_LetIn t (List.rev rel_context) in 
+  
+  let typeof_t = (Tacmach.pf_type_of gl t) in 
+
+  (* the normal form of the head function *)
+  let nft = Vnorm.cbv_vm (Tacmach.pf_env gl) t typeof_t in 
+  
+  let (!!) x = Tactics.fresh_id [] ((Names.id_of_string x)) gl in
+
+  (* p = [fun x => x a_i] which corresponds to the type of H  when applied to [t] *)
+  let p = mk_fun (!! "x") typeof_t (fun x -> Term.mkApp (Term.mkVar x,argsv)) in 
+
+  (* global let_in, may retype the normal form... *)
+  mk_letin "nft" nft (fun nft ->  
+    let nft' = Term.mkVar nft in
+    let proof_term pf = begin  
+      mk_let (!! "t") t typeof_t (fun t -> let t' = Term.mkVar t in 	
+      mk_let (!! "H") (mk_vm_cast (Leibniz.eq typeof_t t' nft') (Leibniz.eq_refl typeof_t nft')) (Leibniz.eq typeof_t t' nft')
+      (fun h -> 
+      (* typeof_t -> Prop *)
+	let body = Leibniz.eq_ind_r typeof_t 
+	  nft' p pf t' (Term.mkVar h) 
+	in 
+	Term.mkCast (body, Term.DEFAULTcast, Term.mkApp (t', argsv))
+      ))
+    end
+    in
+    assert_tac "subgoal" (Term.mkApp (p,[| nft' |]))
+      (Tactics.reflexivity)
+      (fun subgoal -> 
+	Equality.replace_in_by 
+	  h
+	  term
+	  (Term.mkApp (nft', argsv))
+	  (Tactics.exact_no_check (proof_term  (Term.mkVar subgoal)))
+      )
+  ) gl
+
 let evm_compute eq blacklist = fun gl -> 
   (* the type of the conclusion of the goal is [concl] *)
   let concl = Tacmach.pf_concl gl in 
@@ -194,6 +265,7 @@ let evm_compute eq blacklist = fun gl ->
   
   try 
     assert_tac "subgoal" (Term.mkApp (p,[| nft |]))
+      Tacticals.tclIDTAC
       (fun subgoal -> 
 	(* We use the tactic [exact_no_check]. It has two consequences:
 	- first, it means that in theory we could produce ill typed proof terms, that fail to type check at Qed; 
@@ -233,7 +305,16 @@ TACTIC EXTEND evm1
 END;;
 
 
-TACTIC EXTEND exploit
+TACTIC EXTEND evm_blacklist1
   | ["evm" "blacklist"  "[" constrlist(l) "]"] ->     [evm_compute Term.eq_constr l] 
+END;;
+
+
+TACTIC EXTEND evm2
+  | ["evm" "in" hyp(h)] ->     [evm_compute_in Term.eq_constr [] h]      
+END;;
+
+TACTIC EXTEND evm_blacklist2
+  | ["evm" "in" hyp(h) "blacklist"  "[" constrlist(l) "]"] ->     [evm_compute_in Term.eq_constr l h] 
 END;;
 
