@@ -52,15 +52,15 @@ Check ("evm_compute without witnesses")%string.
 Goal exists e1 e2, Z.of_nat k = e1 * e2. 
 intros. eexists. eexists.
 rewrite <- factorisable. 
-Time evm blacklist [Zmult;].   reflexivity.  Show Proof. 
+Time evm blacklist [Zmult;].   reflexivity.  
 Time Qed. 
 
 Check ("evm_compute in H")%string. 
 Goal exists e1 e2, (Z.of_nat k = e1 * e2 -> e1 * e2 = ka * kb). 
 intros. eexists. eexists. intros H.
 rewrite <- factorisable in H. 
-Time evm in H blacklist [Zmult;]. Show Proof. 
-apply H. Show Proof. 
+Time evm in H blacklist [Zmult;]. 
+apply H. 
 Time Qed. 
 
 Check ("vm_compute with witnesses")%string. 

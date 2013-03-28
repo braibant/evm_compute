@@ -1,3 +1,5 @@
+(*i camlp4deps: "parsing/grammar.cma" i*)
+(*i camlp4use: "pa_extend.cmp" i*)
 
 
 let pp_constr fmt x = Pp.pp_with fmt (Printer.pr_constr x)
@@ -218,6 +220,29 @@ let evm_compute_in eq blacklist h = fun gl ->
     ]
     gl
 
+(* Gregory Malecha's support for dynamically constructed blacklists *)
+let rec extract_blacklist (g : Term.constr) : Term.constr list =
+  match Term.kind_of_term g with
+  | Term.App (f,args) ->
+    begin
+      if Array.length args = 3 then
+        Array.get args 1 :: extract_blacklist (Array.get args 2)
+      else
+        failwith "bad array length"
+    end
+  | Term.Construct _ -> []
+  | _ -> failwith "other"
+
+type cbl =
+| Constr of Term.constr
+| Bl of Term.constr
+
+let rec get_blacklist (g : cbl list) : Term.constr list =
+  match g with
+  | [] -> []
+  | Constr c :: g -> c :: get_blacklist g
+  | Bl b :: g -> extract_blacklist b @ get_blacklist g
+
 
 open Tacmach
 open Tacticals
@@ -249,3 +274,11 @@ TACTIC EXTEND evm2
   | ["evm" "in" hyp(h) "blacklist"  "[" constrlist(l) "]"] ->     [evm_compute_in Term.eq_constr l h] 
 END;;
 
+TACTIC EXTEND computed_blacklist
+  | ["evm" "computed_blacklist"  "[" constrlist(l) "]"] ->
+    [ let bl = List.flatten (List.map extract_blacklist l) in
+      evm_compute Term.eq_constr bl ]
+  | ["evm" "in" hyp(h) "computed_blacklist"  "[" constrlist(l) "]"] ->
+    [ let bl = List.flatten (List.map extract_blacklist l) in
+      evm_compute_in Term.eq_constr bl h ]
+END

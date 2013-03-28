@@ -1,4 +1,4 @@
-MODULES :=  src/evm_compute.ml4 src/Evm_compute.v test-suite/Example.v
+MODULES :=  src/evm_compute.ml4 src/Evm_compute.v test-suite/Example.v test-suite/Example2.v
 NAME := evm_compute
 ROOT := ./
 .PHONY: coq clean
